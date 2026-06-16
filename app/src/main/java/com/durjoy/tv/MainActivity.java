@@ -11,7 +11,7 @@ import android.net.http.SslError;
 import android.webkit.SslErrorHandler;
 public class MainActivity extends Activity {
     private WebView webView;
-    private static final String URL = "http://durjoy.gt.tc";
+    private static final String URL = "http://durjoy.gt.tc/home.html";
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
