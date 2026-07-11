@@ -1,4 +1,4 @@
-package com.durjoy.tv;
+package com.dtv.tv;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
