@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Durjoy TV</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Thasadith:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: 'Thasadith', sans-serif; color: #fff; }
+    #videoWrapper { position: fixed; inset: 0; }
+    #videoPlayer { width: 100%; height: 100%; object-fit: fill; transition: opacity 0.4s ease; }
+
+    /* CHANNEL OSD */
+    #channelOSD {
+      position: absolute; top: 14px; right: 18px;
+      display: none; flex-direction: column; align-items: flex-end; gap: 1px;
+      z-index: 20; pointer-events: none;
+    }
+    #channelOSD.visible { display: flex; }
+    #channelNum { font-size: 48px; font-weight: 300; color: #fff; line-height: 1; letter-spacing: -1px; }
+    #channelName { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.6); letter-spacing: 1.5px; text-transform: uppercase; }
+    #serverBadge { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.35); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+    /* FAV */
+    #favIndicator { position: absolute; bottom: 44px; right: 18px; font-size: 13px; opacity: 0; transition: opacity 0.3s; z-index: 20; pointer-events: none; }
+    #favIndicator.on { opacity: 0.6; }
+
+    /* STATUS DOT */
+    #statusWrap {
+      position: absolute; bottom: 16px; left: 18px;
+      display: flex; align-items: center; gap: 6px;
+      z-index: 20; pointer-events: none; opacity: 0; transition: opacity 0.4s;
+    }
+    #statusWrap.show { opacity: 1; }
+    #statusDot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: blink 2s ease-in-out infinite; }
+    #statusDot.buffering { background: #fbbf24; animation: none; }
+    #statusDot.error     { background: #f87171; animation: none; }
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+    #statusLabel { font-size: 10px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.4); }
+
+    /* LOAD BAR */
+    #loadBar { position: absolute; bottom: 0; left: 0; height: 2px; background: rgba(255,255,255,0.7); width: 0; z-index: 30; pointer-events: none; }
+    #loadBar.loading { animation: loadAnim 1.6s ease-in-out infinite; }
+    @keyframes loadAnim { 0%{left:0;width:0;opacity:1;} 50%{left:0;width:70%;opacity:1;} 100%{left:70%;width:30%;opacity:0;} }
+
+    /* TOAST */
+    #toast {
+      position: fixed; bottom: 50px; left: 50%;
+      transform: translate3d(-50%, 8px, 0);
+      background: rgba(20,20,20,0.9); border-radius: 6px;
+      padding: 8px 18px; font-size: 11px; font-weight: 500;
+      letter-spacing: 1.2px; text-transform: uppercase;
+      color: rgba(255,255,255,0.7);
+      opacity: 0; transition: opacity 0.25s, transform 0.25s;
+      z-index: 50; pointer-events: none; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translate3d(-50%, 0, 0); }
+
+    /* BIG HEART */
+    #bigHeart {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate3d(-50%,-50%,0) scale(0);
+      font-size: 80px; z-index: 100; display: none;
+      animation: heartPop 1.6s ease forwards;
+    }
+    @keyframes heartPop {
+      0%  {transform:translate3d(-50%,-50%,0) scale(0);opacity:1;}
+      40% {transform:translate3d(-50%,-50%,0) scale(1.2);}
+      70% {transform:translate3d(-50%,-50%,0) scale(0.9);opacity:1;}
+      100%{transform:translate3d(-50%,-50%,0) scale(1);opacity:0;}
+    }
+
+    /* NO SIGNAL */
+    #noSignal {
+      position: fixed; inset: 0; background: #000;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px; z-index: 10;
+    }
+    #noSignal.show { display: flex; }
+    #noSignalIcon { font-size: 40px; opacity: 0.2; }
+    #noSignalText { font-size: 13px; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.3); }
+    #retryDots { display: flex; gap: 6px; margin-top: 4px; }
+    #retryDots span { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.3); animation: dotPulse 1.4s infinite; }
+    #retryDots span:nth-child(2) { animation-delay: 0.2s; }
+    #retryDots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dotPulse { 0%,100%{opacity:0.2;transform:scale(0.8);} 50%{opacity:1;transform:scale(1.2);} }
+
+    /* LAST CH BADGE */
+    #lastChBadge { position: absolute; bottom: 40px; left: 18px; font-size: 9px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.3); z-index: 20; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
+    #lastChBadge.show { opacity: 1; }
+
+    /* SERVER INDICATOR */
+    #serverIndicator { position: absolute; bottom: 60px; right: 18px; font-size: 9px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.3); z-index: 20; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
+    #serverIndicator.show { opacity: 1; }
+
+    /* INIT LOADER */
+    #initLoader {
+      position: fixed; inset: 0; background: #000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 200;
+    }
+    #initLoader.hidden { display: none; }
+    #initLoaderText { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+    .spinner { width: 28px; height: 28px; border: 2px solid rgba(255,255,255,0.15); border-top-color: #ff7f2a; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg);} }
+
+    /* FAIL SCREEN */
+    #failScreen {
+      position: fixed; inset: 0; background: #000;
+      display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px; z-index: 200;
+    }
+    #failScreen.show { display: flex; }
+    #failIcon { font-size: 40px; opacity: 0.3; }
+    #failText { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.4); text-align: center; max-width: 80vw; line-height: 1.7; }
+    #failHomeBtn {
+      margin-top: 8px; padding: 12px 28px;
+      background: #ff7f2a; color: #1a0a00;
+      border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 700;
+      letter-spacing: 1px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div id="initLoader">
+  <div class="spinner"></div>
+  <div id="initLoaderText">Loading channels...</div>
+</div>
+
+<div id="failScreen">
+  <div id="failIcon">⊘</div>
+  <div id="failText">Channel load failed.<br>Check internet connection and retry.</div>
+  <button id="failHomeBtn">Retry</button>
+</div>
+
+<div id="videoWrapper">
+  <video id="videoPlayer" poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" autoplay playsinline></video>
+  <div id="channelOSD">
+    <div id="channelNum">01</div>
+    <div id="channelName">Channel</div>
+    <div id="serverBadge"></div>
+  </div>
+  <div id="favIndicator"></div>
+  <div id="statusWrap">
+    <div id="statusDot"></div>
+    <div id="statusLabel">Live</div>
+  </div>
+  <div id="serverIndicator"></div>
+  <div id="lastChBadge"></div>
+  <div id="loadBar"></div>
+  <div id="noSignal">
+    <div id="noSignalIcon">⊘</div>
+    <div id="noSignalText">No Signal</div>
+    <div id="retryDots"><span></span><span></span><span></span></div>
+  </div>
+  <div id="bigHeart"></div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@latest/dist/mpegts.js"></script>
+
+<script>
+/* ============================================================
+   DurjoyCore — inlined player-core.js
+   Handles: channel fetching (with localStorage cache fallback),
+   favorites persistence, last-channel / last-source memory.
+   ============================================================ */
+window.DurjoyCore = (function () {
+  const CHANNEL_JSON_URL = "https://cdn.jsdelivr.net/gh/durjoyrozario/hls@tv/channels.json";
+
+  const CACHE_KEY = "durjoy_channels_cache";
+  const FAV_KEY = "durjoy_favorites";
+  const LAST_CH_KEY = "durjoy_last_channel";
+  const LAST_SRC_PREFIX = "durjoy_last_source_";
+
+  let channels = [];
+  let favorites = [];
+
+  // Normalize raw JSON into { name, sources: [{name,url}, ...] } shape.
+  // Actual Durjoy TV format: { "channels": [ { "name","category","logo","sources":[{"name","url"}] } ] }
+  // Also supports a plain top-level array as a fallback.
+  function normalize(raw) {
+    const list = Array.isArray(raw) ? raw : (Array.isArray(raw.channels) ? raw.channels : []);
+    return list.map(ch => {
+      if (Array.isArray(ch.sources) && ch.sources.length) {
+        return { name: ch.name || "Untitled", category: ch.category || "", logo: ch.logo || "", sources: ch.sources };
+      }
+      return { name: ch.name || "Untitled", category: ch.category || "", logo: ch.logo || "", sources: [{ name: "Server 1", url: ch.url }] };
+    }).filter(ch => ch.sources.length && ch.sources[0].url);
+  }
+
+  let lastError = "";
+  function getLastError() { return lastError; }
+
+  async function fetchChannels() {
+    try {
+      const res = await fetch(CHANNEL_JSON_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status + " " + res.statusText);
+      const raw = await res.json();
+      channels = normalize(raw);
+      if (channels.length) {
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(channels)); } catch (e) {}
+        return { ok: true, usedCache: false };
+      }
+      throw new Error("Parsed channel list is empty (check JSON structure)");
+    } catch (err) {
+      lastError = (err && err.message) ? err.message : String(err);
+      // Fallback to cached copy if fetch fails
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const parsedCache = JSON.parse(cached);
+          if (parsedCache.length) {
+            channels = parsedCache;
+            return { ok: false, usedCache: true };
+          }
+        }
+      } catch (e) {}
+      channels = [];
+      return { ok: false, usedCache: false };
+    }
+  }
+
+  function getChannels() { return channels; }
+
+  function loadFavorites() {
+    try {
+      const raw = localStorage.getItem(FAV_KEY);
+      favorites = raw ? JSON.parse(raw) : [];
+    } catch (e) { favorites = []; }
+  }
+  function getFavorites() { return favorites; }
+  function saveFavorites() {
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(window.favorites || favorites)); } catch (e) {}
+  }
+
+  function saveLastChannel(idx) {
+    try { localStorage.setItem(LAST_CH_KEY, String(idx)); } catch (e) {}
+  }
+  function loadLastChannel() {
+    try {
+      const v = parseInt(localStorage.getItem(LAST_CH_KEY), 10);
+      return isNaN(v) ? 0 : v;
+    } catch (e) { return 0; }
+  }
+
+  function saveLastSource(chIdx, srcIdx) {
+    try { localStorage.setItem(LAST_SRC_PREFIX + chIdx, String(srcIdx)); } catch (e) {}
+  }
+  function loadLastSource(chIdx) {
+    try {
+      const v = parseInt(localStorage.getItem(LAST_SRC_PREFIX + chIdx), 10);
+      return isNaN(v) ? 0 : v;
+    } catch (e) { return 0; }
+  }
+
+  return {
+    fetchChannels, getChannels, getLastError,
+    loadFavorites, getFavorites, saveFavorites,
+    saveLastChannel, loadLastChannel,
+    saveLastSource, loadLastSource
+  };
+})();
+</script>
+
+<script>
+let channels = [], favorites = [];
+let currentIndex = 0, currentSource = 0, previousIndex = -1;
+let hls = null, mpegtsPlayer = null;
+let pressTimer = null, isKeyPressed = false;
+let osdTimeout = null, statusTimeout = null, retryTimer = null, lastBadgeTimer = null, serverIndTimer = null, toastTimer = null, offlineNoSignalTimer = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT = 6;
+let isOffline = !navigator.onLine;
+
+const video = document.getElementById('videoPlayer');
+const osd = document.getElementById('channelOSD');
+const chNum = document.getElementById('channelNum');
+const chName = document.getElementById('channelName');
+const serverBadge = document.getElementById('serverBadge');
+const loadBar = document.getElementById('loadBar');
+const statusWrap = document.getElementById('statusWrap');
+const statusDot = document.getElementById('statusDot');
+const statusLabel = document.getElementById('statusLabel');
+const favInd = document.getElementById('favIndicator');
+const noSignal = document.getElementById('noSignal');
+const bigHeart = document.getElementById('bigHeart');
+const toastEl = document.getElementById('toast');
+const lastChBadge = document.getElementById('lastChBadge');
+const serverIndEl = document.getElementById('serverIndicator');
+const initLoader = document.getElementById('initLoader');
+const failScreen = document.getElementById('failScreen');
+
+document.getElementById('failHomeBtn').addEventListener('click', retryLoad);
+
+function retryLoad() {
+  failScreen.classList.remove('show');
+  initLoader.classList.remove('hidden');
+  start();
+}
+
+function goFullscreen() {
+  const el = document.documentElement;
+  (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen || (() => {})).call(el);
+}
+window.addEventListener('load', () => setTimeout(goFullscreen, 500));
+
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000);
+}
+
+function showOSD(chIdx, srcIdx) {
+  const ch = channels[chIdx];
+  if (!ch) return;
+  chNum.textContent = String(chIdx + 1).padStart(2, '0');
+  chName.textContent = ch.name;
+  const src = ch.sources[srcIdx];
+  serverBadge.textContent = ch.sources.length > 1 ? `${src ? src.name : ''} · ${srcIdx+1}/${ch.sources.length}` : '';
+  osd.classList.add('visible');
+  clearTimeout(osdTimeout);
+  osdTimeout = setTimeout(() => osd.classList.remove('visible'), 2500);
+}
+
+function showServerIndicator(chIdx, srcIdx) {
+  const ch = channels[chIdx];
+  if (!ch || ch.sources.length <= 1) { serverIndEl.classList.remove('show'); return; }
+  const src = ch.sources[srcIdx];
+  serverIndEl.textContent = `${src ? src.name : ''} ${srcIdx+1}/${ch.sources.length}`;
+  serverIndEl.classList.add('show');
+  clearTimeout(serverIndTimer);
+  serverIndTimer = setTimeout(() => serverIndEl.classList.remove('show'), 3000);
+}
+
+function setStatus(state, label) {
+  statusDot.className = state === 'live' ? '' : state;
+  statusLabel.textContent = label || state.toUpperCase();
+  statusWrap.classList.add('show');
+  clearTimeout(statusTimeout);
+  if (state === 'live') statusTimeout = setTimeout(() => statusWrap.classList.remove('show'), 3000);
+}
+
+function showNoSignal(show) { noSignal.classList.toggle('show', show); }
+function checkFavStatus() { favInd.classList.toggle('on', favorites.includes(currentIndex)); }
+
+function showLastChBadge(idx) {
+  if (idx < 0 || !channels[idx]) return;
+  lastChBadge.textContent = `↩ Last: ${channels[idx].name}`;
+  lastChBadge.classList.add('show');
+  clearTimeout(lastBadgeTimer);
+  lastBadgeTimer = setTimeout(() => lastChBadge.classList.remove('show'), 3000);
+}
+
+const isHlsUrl = url => /\.m3u8(\?.*)?$/i.test(url);
+
+function loadMpegTs(chIdx, srcIdx, url, autoFallback) {
+  if (!window.mpegts || !mpegts.getFeatureList().mseLivePlayback) {
+    showToast('Device cannot play this stream format');
+    scheduleReconnect();
+    return;
+  }
+  mpegtsPlayer = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: true, liveBufferLatencyChasing: true });
+  mpegtsPlayer.attachMediaElement(video);
+  mpegtsPlayer.load();
+  mpegtsPlayer.play().catch(() => {});
+
+  video.addEventListener('loadeddata', function onLoaded() {
+    video.style.opacity = '1';
+    loadBar.className = '';
+    setStatus('live', 'Live');
+    showNoSignal(false);
+    reconnectAttempts = 0;
+    video.removeEventListener('loadeddata', onLoaded);
+  }, { once: true });
+
+  mpegtsPlayer.on(mpegts.Events.ERROR, () => {
+    const ch = channels[chIdx];
+    if (autoFallback && srcIdx + 1 < ch.sources.length) {
+      const next = srcIdx + 1;
+      showToast(`${ch.sources[srcIdx].name} failed → trying ${ch.sources[next].name}`);
+      setTimeout(() => loadSource(chIdx, next, true), 800);
+    } else {
+      scheduleReconnect();
+    }
+  });
+}
+
+function loadSource(chIdx, srcIdx, autoFallback) {
+  const ch = channels[chIdx];
+  const src = ch ? ch.sources[srcIdx] : null;
+  if (!src) { showNoSignal(true); setStatus('error', 'No Signal'); loadBar.className = ''; return; }
+
+  currentSource = srcIdx;
+  DurjoyCore.saveLastSource(chIdx, srcIdx);
+
+  video.style.opacity = '0';
+  showNoSignal(false);
+  loadBar.className = 'loading';
+  setStatus('buffering', 'Loading');
+  clearTimeout(retryTimer);
+
+  if (hls) { hls.destroy(); hls = null; }
+  if (mpegtsPlayer) { mpegtsPlayer.destroy(); mpegtsPlayer = null; }
+
+  const url = src.url;
+
+  const handleHlsSuccess = () => {
+    video.play().catch(() => {});
+    video.style.opacity = '1';
+    loadBar.className = '';
+    setStatus('live', 'Live');
+    showNoSignal(false);
+    reconnectAttempts = 0;
+    showOSD(chIdx, srcIdx);
+    showServerIndicator(chIdx, srcIdx);
+  };
+
+  if (!isHlsUrl(url)) {
+    if (Hls.isSupported()) {
+      hls = new Hls({ maxBufferLength: 60, initialLiveManifestSize: 2, enableWorker: true });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, handleHlsSuccess);
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (!data.fatal) return;
+        hls.destroy(); hls = null;
+        if (data.type !== Hls.ErrorTypes.MEDIA_ERROR) {
+          loadMpegTs(chIdx, srcIdx, url, autoFallback);
+        } else {
+          if (autoFallback && srcIdx + 1 < ch.sources.length) {
+            const next = srcIdx + 1;
+            showToast(`Trying server ${next + 1}`);
+            setTimeout(() => loadSource(chIdx, next, true), 800);
+          } else scheduleReconnect();
+        }
+      });
+    } else {
+      loadMpegTs(chIdx, srcIdx, url, autoFallback);
+    }
+  } else if (Hls.isSupported()) {
+    hls = new Hls({ maxBufferLength: 60, initialLiveManifestSize: 2, enableWorker: true });
+    hls.loadSource(url);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, handleHlsSuccess);
+    hls.on(Hls.Events.ERROR, (event, data) => {
+      if (!data.fatal) return;
+      if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        hls.recoverMediaError();
+      } else {
+        if (autoFallback && srcIdx + 1 < ch.sources.length) {
+          const next = srcIdx + 1;
+          showToast(`${ch.sources[srcIdx].name} failed → trying ${ch.sources[next].name}`);
+          setTimeout(() => loadSource(chIdx, next, true), 800);
+        } else scheduleReconnect();
+      }
+    });
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = url;
+    video.onloadedmetadata = () => {
+      video.play().catch(() => {});
+      video.style.opacity = '1';
+      loadBar.className = '';
+      setStatus('live', 'Live');
+      showOSD(chIdx, srcIdx);
+    };
+    video.onerror = () => {
+      if (autoFallback && srcIdx + 1 < ch.sources.length) {
+        const next = srcIdx + 1;
+        showToast(`Trying server ${next + 1}`);
+        setTimeout(() => loadSource(chIdx, next, true), 800);
+      } else scheduleReconnect();
+    };
+  }
+
+  showOSD(chIdx, srcIdx);
+  checkFavStatus();
+}
+
+function playChannel(i, fromBack) {
+  if (!channels.length) return;
+  i = ((i % channels.length) + channels.length) % channels.length;
+  if (!fromBack && i !== currentIndex) previousIndex = currentIndex;
+  DurjoyCore.saveLastChannel(i);
+  currentIndex = i;
+  reconnectAttempts = 0;
+  clearTimeout(offlineNoSignalTimer);
+  loadSource(i, DurjoyCore.loadLastSource(i), true);
+}
+
+function switchNextServer() {
+  const ch = channels[currentIndex];
+  if (!ch || ch.sources.length <= 1) { showToast('Only one server'); return; }
+  const next = (currentSource + 1) % ch.sources.length;
+  showToast(`Server: ${ch.sources[next].name} (${next+1}/${ch.sources.length})`);
+  loadSource(currentIndex, next, false);
+}
+
+function isVideoStillPlaying() {
+  return !video.paused && !video.ended && video.buffered.length && (video.buffered.end(video.buffered.length - 1) - video.currentTime) > 2;
+}
+
+function scheduleReconnect() {
+  if (reconnectAttempts >= MAX_RECONNECT) {
+    if (!isVideoStillPlaying()) { showNoSignal(true); setStatus('error', 'No Signal'); }
+    loadBar.className = '';
+    return;
+  }
+  reconnectAttempts++;
+  const delay = Math.min(1500 * reconnectAttempts, 8000);
+  const isPlaying = isVideoStillPlaying();
+  setStatus(isPlaying ? 'buffering' : 'error', `Retry ${reconnectAttempts}/${MAX_RECONNECT}`);
+  showNoSignal(!isPlaying);
+
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(() => {
+    if (navigator.onLine || isVideoStillPlaying()) {
+      showNoSignal(false);
+      loadSource(currentIndex, currentSource, false);
+    } else scheduleReconnect();
+  }, delay);
+}
+
+window.addEventListener('online', () => {
+  isOffline = false;
+  clearTimeout(offlineNoSignalTimer);
+  showToast('Internet restored');
+  clearTimeout(retryTimer);
+  reconnectAttempts = 0;
+  setTimeout(() => loadSource(currentIndex, currentSource, true), 600);
+});
+
+window.addEventListener('offline', () => {
+  isOffline = true;
+  setStatus('error', 'No Internet');
+  showToast('No internet');
+});
+
+const handleBuffering = (delayTime) => {
+  setStatus('buffering', 'Buffering');
+  if (isOffline) {
+    clearTimeout(offlineNoSignalTimer);
+    offlineNoSignalTimer = setTimeout(() => { showNoSignal(true); setStatus('error', 'No Internet'); }, delayTime);
+  }
+};
+
+video.addEventListener('stalled', () => {
+  handleBuffering(3000);
+  if (!isOffline) {
+    retryTimer = setTimeout(() => { if (navigator.onLine) { video.load(); video.play().catch(()=>{}); } }, 3000);
+  }
+});
+video.addEventListener('waiting', () => handleBuffering(4000));
+video.addEventListener('playing', () => {
+  setStatus('live', 'Live');
+  showNoSignal(false);
+  clearTimeout(offlineNoSignalTimer);
+});
+
+function toggleFavorite() {
+  const isFav = favorites.includes(currentIndex);
+  bigHeart.style.display = 'block';
+  bigHeart.style.animation = 'none';
+  void bigHeart.offsetWidth;
+  bigHeart.style.animation = 'heartPop 1.6s ease forwards';
+  if (!isFav) {
+    favorites.push(currentIndex);
+    bigHeart.textContent = '❤️'; bigHeart.style.color = '#e05';
+    showToast('Added to favorites');
+  } else {
+    favorites = favorites.filter(id => id !== currentIndex);
+    bigHeart.textContent = '💔'; bigHeart.style.color = '#fff';
+    showToast('Removed from favorites');
+  }
+  window.favorites = favorites;
+  DurjoyCore.saveFavorites();
+  setTimeout(() => bigHeart.style.display = 'none', 1700);
+  checkFavStatus();
+}
+
+let numBuffer = '', numTimer = null;
+function commitChannelNumber() {
+  const n = parseInt(numBuffer, 10);
+  numBuffer = '';
+  if (isNaN(n) || n < 1 || n > channels.length) { showToast('Channel not found'); hideNumOSD(); return; }
+  hideNumOSD(); playChannel(n - 1);
+}
+function showNumOSD(buf) {
+  chNum.textContent = buf.padStart(2,'0');
+  const n = parseInt(buf,10);
+  chName.textContent = (!isNaN(n) && n >= 1 && n <= channels.length) ? channels[n-1].name : '—';
+  serverBadge.textContent = '';
+  osd.classList.add('visible'); clearTimeout(osdTimeout);
+}
+function hideNumOSD() { osd.classList.remove('visible'); }
+
+document.addEventListener('keydown', e => {
+  if (isKeyPressed) return;
+  isKeyPressed = true;
+
+  if (e.key >= '0' && e.key <= '9') {
+    numBuffer += e.key; showNumOSD(numBuffer); clearTimeout(numTimer);
+    numTimer = setTimeout(commitChannelNumber, numBuffer.length >= channels.length.toString().length ? 300 : 2000);
+    return;
+  }
+  if (numBuffer && e.key !== 'Enter') { clearTimeout(numTimer); commitChannelNumber(); }
+
+  if (e.key === 'Enter') {
+    pressTimer = setTimeout(() => { toggleFavorite(); pressTimer = null; }, 2000);
+  }
+  else if (e.key === 'ArrowRight') playChannel(currentIndex + 1);
+  else if (e.key === 'ArrowLeft')  playChannel(currentIndex - 1);
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    if (favorites.length > 0) {
+      const ci = favorites.indexOf(currentIndex);
+      const step = e.key === 'ArrowUp' ? 1 : -1;
+      playChannel(favorites[(ci + step + favorites.length) % favorites.length]);
+    } else {
+      playChannel(currentIndex + (e.key === 'ArrowUp' ? 1 : -1));
+    }
+  }
+  // Back button: no home screen to go to, so just leave it unhandled
+  // (default Android back behavior will apply, e.g. exiting the app).
+});
+
+document.addEventListener('keyup', e => {
+  isKeyPressed = false;
+  if (e.key === 'Enter' && pressTimer) {
+    clearTimeout(pressTimer); pressTimer = null; switchNextServer();
+  }
+});
+
+async function start() {
+  DurjoyCore.loadFavorites();
+  favorites = DurjoyCore.getFavorites();
+  const result = await DurjoyCore.fetchChannels();
+  channels = DurjoyCore.getChannels();
+
+  if (!channels.length) {
+    initLoader.classList.add('hidden');
+    document.getElementById('failText').innerHTML =
+      'Channel load failed.<br>' + (DurjoyCore.getLastError() || 'Unknown error');
+    failScreen.classList.add('show');
+    return;
+  }
+  if (!result.ok && result.usedCache) showToast('Using cached channel list (source unreachable)');
+  initLoader.classList.add('hidden');
+
+  const startIndex = DurjoyCore.loadLastChannel();
+  if (startIndex > 0) showToast(`Resuming: ${channels[startIndex].name}`);
+  playChannel(startIndex);
+}
+
+start();
+</script>
+</body>
+</html>
