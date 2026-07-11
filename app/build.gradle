@@ -3,9 +3,9 @@ plugins {
 }
 android {
     compileSdk 34
-    namespace "com.durjoy.tv"
+    namespace "com.dtv.tv"
     defaultConfig {
-        applicationId "com.durjoy.tv"
+        applicationId "com.dtv.tv"
         minSdk 21
         targetSdk 34
         versionCode 1
